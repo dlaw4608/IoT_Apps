@@ -1,0 +1,46 @@
+<!-- receiver.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebRTC Audio Receiver</title>
+</head>
+<body>
+  <h2>Receiving Audio...</h2>
+  <audio id="audio" autoplay controls></audio>
+
+  <script>
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    const ws = new WebSocket("ws://54.216.122.197:8080");
+
+    ws.onopen = () => console.log("WebSocket connected");
+    ws.onerror = err => console.error("WebSocket error", err);
+
+    ws.onmessage = async (event) => {
+      const data = JSON.parse(event.data);
+      console.log("WS message:", data);
+
+      if (data.type === "offer") {
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({
+          type: pc.localDescription.type,
+          sdp: pc.localDescription.sdp
+        }));
+      } else if (data.type === "candidate" && data.candidate) {
+        await pc.addIceCandidate(data.candidate);
+      }
+    };
+
+    pc.onicecandidate = event => {
+      if (event.candidate) {
+        ws.send(JSON.stringify({ candidate: event.candidate }));
+      }
+    };
+
+    pc.ontrack = event => {
+      console.log("Received track

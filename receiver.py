@@ -16,7 +16,7 @@ async def run():
         @channel.on('message')
         def on_message(message):
             print("Received message:", message)
-            with open('received_image.jpg', 'wb') as file:
+            with open('received_audio.mp3', 'wb') as file:
                 file.write(message)
 
     # Listen for offer
