@@ -40,7 +40,7 @@ class AudioFileTrack(AudioStreamTrack):
 
 
 async def connect_websocket():
-    uri = "ws://54.216.122.197:8080"
+    uri = "ws://localhost:8080"
     return await websockets.connect(uri)
 
 
@@ -51,7 +51,7 @@ async def run():
     print("Connected to signaling server.")
 
     # Add the audio track
-    audio_path = '/Users/daniellawton/Documents/IoT_Lock_In/audio/12_DARE_48k.wav'  # Replace with your path
+    audio_path = '/Users/daniellawton/Documents/IoT_Lock_In/audio/12_DARE_48k.wav'  # Change to your file
     audio_track = AudioFileTrack(audio_path)
     pc.addTrack(audio_track)
     print("Audio track added.")
@@ -59,31 +59,51 @@ async def run():
     @pc.on("icecandidate")
     async def on_icecandidate(event):
         if event.candidate:
-            await ws.send(json.dumps({"candidate": event.candidate.__dict__}))
+            candidate_dict = {
+                "type": "candidate",
+                "candidate": {
+                    "candidate": event.candidate.candidate,
+                    "sdpMid": event.candidate.sdpMid,
+                    "sdpMLineIndex": event.candidate.sdpMLineIndex
+                }
+            }
+            await ws.send(json.dumps(candidate_dict))
+            print("Sent ICE candidate.")
 
     # Create offer
     offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
     print("Sending offer...")
     await ws.send(json.dumps({
-        "sdp": pc.localDescription.sdp,
-        "type": pc.localDescription.type
+        "type": pc.localDescription.type,
+        "sdp": pc.localDescription.sdp
     }))
 
     try:
         async for message in ws:
+            if isinstance(message, bytes):
+                message = message.decode("utf-8")
             data = json.loads(message)
-            if data['type'] == 'answer':
-                print("Received answer.")
+
+            if data.get("type") == "answer":
+                print("Received SDP answer.")
                 await pc.setRemoteDescription(RTCSessionDescription(
-                    sdp=data['sdp'],
-                    type=data['type']
+                    sdp=data["sdp"],
+                    type=data["type"]
                 ))
-            elif data['type'] == 'candidate' and data['candidate']:
-                candidate = RTCIceCandidate(**data['candidate'])
+
+            elif data.get("type") == "candidate":
+                candidate_info = data["candidate"]
+                candidate = RTCIceCandidate(
+                    candidate=candidate_info["candidate"],
+                    sdpMid=candidate_info["sdpMid"],
+                    sdpMLineIndex=candidate_info["sdpMLineIndex"]
+                )
                 await pc.addIceCandidate(candidate)
+                print("Added ICE candidate from receiver.")
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during signaling: {e}")
     finally:
         print("Cleaning up...")
         await ws.close()
