@@ -40,7 +40,7 @@ class AudioFileTrack(AudioStreamTrack):
 
 
 async def connect_websocket():
-    uri = "ws://localhost:8080"
+    uri = "ws://54.216.122.197:8080"  # Replace with your signaling server address
     return await websockets.connect(uri)
 
 
@@ -51,10 +51,12 @@ async def run():
     print("Connected to signaling server.")
 
     # Add the audio track
-    audio_path = '/Users/daniellawton/Documents/IoT_Lock_In/audio/12_DARE_48k.wav'  # Change to your file
+    audio_path = '/Users/daniellawton/Documents/IoT_Lock_In/audio/12_DARE_48k.wav'  # Change this to your path
     audio_track = AudioFileTrack(audio_path)
     pc.addTrack(audio_track)
     print("Audio track added.")
+
+    answer_received = False  # <- Track whether we've already handled the answer
 
     @pc.on("icecandidate")
     async def on_icecandidate(event):
@@ -86,11 +88,15 @@ async def run():
             data = json.loads(message)
 
             if data.get("type") == "answer":
-                print("Received SDP answer.")
-                await pc.setRemoteDescription(RTCSessionDescription(
-                    sdp=data["sdp"],
-                    type=data["type"]
-                ))
+                if not answer_received:
+                    print("Received SDP answer.")
+                    await pc.setRemoteDescription(RTCSessionDescription(
+                        sdp=data["sdp"],
+                        type=data["type"]
+                    ))
+                    answer_received = True
+                else:
+                    print("Duplicate answer received — ignored.")
 
             elif data.get("type") == "candidate":
                 candidate_info = data["candidate"]
@@ -108,6 +114,7 @@ async def run():
         print("Cleaning up...")
         await ws.close()
         await pc.close()
+
 
 # Run the sender
 if __name__ == "__main__":

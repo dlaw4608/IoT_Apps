@@ -15,7 +15,7 @@
     });
 
     // Connect to local signaling server
-    const ws = new WebSocket("ws://localhost:8080");
+    const ws = new WebSocket("ws://54.216.122.197:8080");
 
     ws.onopen = () => console.log("WebSocket connected");
     ws.onerror = err => console.error("WebSocket error", err);
